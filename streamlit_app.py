@@ -171,26 +171,23 @@ if len(data) > 0:
         period_days = period_weeks * 7
         st.write(f"총 기간: {period_weeks}주 ({period_days}일)")
         st.write(f"일일 걷기: {round(walk_km/period_days,1)} km / 일일 조깅: {round(jog_km/period_days,1)} km / 일일 달리기: {round(run_km/period_days,1)} km")
+
+        st.markdown("**혼합 운동 추천**")
+        st.write("걷기, 조깅, 달리기를 혼합하여 목표를 달성할 수 있습니다. 아래는 예시입니다.")
+        # 예시: 걷기 50%, 조깅 30%, 달리기 20% 비율
+        walk_mix = round(walk_km * 0.5, 1)
+        jog_mix = round(jog_km * 0.3, 1)
+        run_mix = round(run_km * 0.2, 1)
+        st.write(f"혼합 추천: 걷기 {walk_mix} km + 조깅 {jog_mix} km + 달리기 {run_mix} km (총 {walk_mix + jog_mix + run_mix} km)")
+        st.write(f"일일 혼합 운동(기간 {period_days}일 기준): 걷기 {round(walk_mix/period_days,1)} km / 조깅 {round(jog_mix/period_days,1)} km / 달리기 {round(run_mix/period_days,1)} km")
     else:
         st.write("이미 BMI 25 이하입니다!")
 
     st.markdown("---")
+    st.markdown("**계획안 작성 참고 예시**")
+    st.info("예시: 나는 키가 170cm, 몸무게 80kg, BMI 값이 26이다. 그래서 BMI 25를 달성하기 위해 16주 동안 달리기를 매일 1km씩 할 것이다.")
     student_name = st.text_input("이름(필수)")
     report_text = st.text_area("BMI 25 달성을 위한 나의 운동 계획안", height=200)
-    if st.button("계획안 제출 및 저장"):
-        if student_name and report_text:
-            import os
-            import csv
-            save_path = "student_reports.csv"
-            file_exists = os.path.isfile(save_path)
-            with open(save_path, "a", encoding="utf-8", newline='') as f:
-                writer = csv.writer(f)
-                if not file_exists:
-                    writer.writerow(["이름", "BMI 25 달성을 위한 운동 계획안"])
-                writer.writerow([student_name, report_text])
-            st.success("계획안이 저장되었습니다! 교사는 student_reports.csv 파일을 엑셀로 열어볼 수 있습니다.")
-        else:
-            st.warning("이름과 계획안을 모두 입력하세요.")
 
     # PDF 다운로드 기능
     if student_name and report_text:
