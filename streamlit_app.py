@@ -200,11 +200,15 @@ with tab_upload:
     template_df = pd.DataFrame({
         '운동거리(km)': [0], '칼로리(kcal)': [0], '키(cm)': [170], '체중(kg)': [65], 'BMI': [0]
     })
-    csv_bytes = template_df.to_csv(index=False).encode('utf-8')
-    st.download_button("템플릿 CSV 다운로드", data=csv_bytes, file_name="biodata_template.csv", mime="text/csv")
+    # CSV: utf-8-sig (Excel에서 깨지지 않도록 BOM 포함) 및 CP949(윈도우 Excel용) 제공
+    csv_utf8_bom = template_df.to_csv(index=False).encode('utf-8-sig')
+    csv_cp949 = template_df.to_csv(index=False, encoding='cp949', errors='replace').encode('cp949')
+    st.download_button("템플릿 CSV 다운로드 (UTF-8, Excel 호환)", data=csv_utf8_bom, file_name="biodata_template_utf8.csv", mime="text/csv")
+    st.download_button("템플릿 CSV 다운로드 (CP949, Windows Excel)", data=csv_cp949, file_name="biodata_template_cp949.csv", mime="text/csv")
     try:
         xlsx_buf = BytesIO()
-        template_df.to_excel(xlsx_buf, index=False)
+        # write excel with default engine (openpyxl) and Korean-friendly sheet name
+        template_df.to_excel(xlsx_buf, index=False, sheet_name='데이터')
         xlsx_buf.seek(0)
         st.download_button("템플릿 XLSX 다운로드", data=xlsx_buf, file_name="biodata_template.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     except Exception:
@@ -408,21 +412,7 @@ with tab_analysis:
         if plan_text:
             st.success("계획안이 입력되었습니다. 필요하면 내용을 복사하거나 PDF로 내보내도록 요청하세요.")
 
-        # 한글 폰트 업로드 (선택) - PDF 한글 표시를 위해 TTF/OTF 파일을 업로드할 수 있습니다.
-        uploaded_font = st.file_uploader("한글 폰트 업로드 (선택, .ttf/.otf)", type=['ttf', 'otf'])
-        if uploaded_font is not None:
-            try:
-                font_bytes = uploaded_font.read()
-                font_save_name = 'NanumGothic.ttf'
-                # prefer original filename if contains noto/nanum
-                fname = uploaded_font.name
-                if 'noto' in fname.lower() or 'nanum' in fname.lower():
-                    font_save_name = fname
-                with open(os.path.join(os.getcwd(), font_save_name), 'wb') as f:
-                    f.write(font_bytes)
-                st.success(f"폰트 '{font_save_name}'이(가) 저장되었습니다. 이제 PDF가 한글을 표시할 수 있습니다.")
-            except Exception as e:
-                st.error(f"폰트 저장 중 오류가 발생했습니다: {e}")
+        # (폰트 업로드 UI는 제거됨)
 
         # PDF 다운로드 준비
         try:
@@ -448,8 +438,5 @@ with tab_analysis:
         except Exception:
             mix_summary = {}
 
-        # (선택) 현재 플롯 이미지를 PDF에 포함하려면 matplotlib로 그려서 바이트 생성 가능
-        chart_bytes = None
-
-        pdf_bytes = create_pdf_bytes(student_name=student_name or '', plan_text=plan_text or '', summary=summary, mix_summary=mix_summary, include_chart_bytes=chart_bytes)
-        st.download_button(label="건강 리포트 PDF 다운로드", data=pdf_bytes, file_name=f"biodata_report_{student_name or 'student'}.pdf", mime='application/pdf')
+    # (선택) 현재 플롯 이미지를 PDF에 포함하려면 matplotlib로 그려서 바이트 생성 가능
+    # PDF 다운로드 기능은 제거되었습니다.
