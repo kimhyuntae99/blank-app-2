@@ -251,76 +251,82 @@ with tab_analysis:
         st.dataframe(data)
     # 결측치율 요약은 화면에 자동 표시하지 않음
 
-        # 기존 분석 코드 사용 (변수 선택, 시각화, 상관/회귀, BMI 계산기 등.)
+        # 기술통계(기술통계 표 및 시각화)
         num_cols = [c for c in data.columns if pd.api.types.is_numeric_dtype(data[c])]
-        st.markdown("**시각화 옵션**")
-        show_all_bars = st.checkbox("모든 수치형 변수 막대그래프로 보기")
-        if show_all_bars:
-            # x labels: 이름 컬럼이 있으면 사용, 아니면 인덱스
-            if '이름' in data.columns:
-                labels = data['이름'].astype(str)
-            elif 'name' in data.columns:
-                labels = data['name'].astype(str)
-            else:
-                labels = data.index.astype(str)
-            st.info(f"{len(num_cols)}개의 수치형 변수를 막대그래프로 표시합니다.")
-            for col in num_cols:
-                fig_bar = px.bar(data, x=labels, y=col, title=f"{col} - 값 분포 (행별)")
-                st.plotly_chart(fig_bar, use_container_width=True)
+        st.subheader("기술통계 요약")
+        if len(num_cols) == 0:
+            st.info("분석 가능한 수치형 변수가 없습니다.")
         else:
-            x_var = st.selectbox("X축 변수", num_cols, index=0)
-            y_var = st.selectbox("Y축 변수", num_cols, index=1 if len(num_cols)>1 else 0)
-            chart_type = st.selectbox("그래프 종류", ["산점도", "히스토그램", "박스플롯"], key='chart_main')
+            desc = data[num_cols].describe().T
+            st.dataframe(desc)
 
-            if chart_type == "산점도":
-                fig_plotly = px.scatter(data, x=x_var, y=y_var, trendline="ols", title=f"{x_var} vs {y_var} 산점도 및 회귀선")
-                st.plotly_chart(fig_plotly, use_container_width=True)
-            elif chart_type == "히스토그램":
-                fig_plotly = px.histogram(data, x=x_var, nbins=15, title=f"{x_var} 히스토그램")
-                st.plotly_chart(fig_plotly, use_container_width=True)
-            elif chart_type == "박스플롯":
-                fig_plotly = px.box(data, y=x_var, title=f"{x_var} 박스플롯")
-                st.plotly_chart(fig_plotly, use_container_width=True)
+            # 변수별 평균 막대그래프
+            st.markdown("**변수별 평균 비교 (막대그래프)**")
+            means = data[num_cols].mean().sort_values(ascending=False)
+            fig_means = px.bar(x=means.index, y=means.values, labels={'x':'변수','y':'평균'}, title='수치형 변수별 평균')
+            st.plotly_chart(fig_means, use_container_width=True)
 
-        # reuse analysis (correlation and regression)
-        st.subheader("상관분석 및 회귀분석 결과")
-        if x_var != y_var:
-            corr = data[x_var].corr(data[y_var])
-            st.write(f"상관계수: {corr:.2f}")
-            if abs(corr) > 0.7:
-                level = '매우 강함'
-            elif abs(corr) > 0.4:
-                level = '상당히 강함'
-            elif abs(corr) > 0.2:
-                level = '약함'
-            else:
-                level = '거의 없음'
-            direction = '양의' if corr > 0 else '음의'
-            summary = f"{x_var}와 {y_var}의 상관계수는 {corr:.2f}로, {direction} 방향의 {level} 상관관계가 있습니다."
-            st.write(f"해석: {summary}")
+            # 각 컬럼별 분포(히스토그램)과 박스플롯을 expander로 제공
+            st.markdown("**열별 상세 분포(히스토그램 + 박스플롯)**")
+            with st.expander("열별 상세 시각화 펼치기", expanded=False):
+                for col in num_cols:
+                    st.markdown(f"**{col}**")
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        fig_hist = px.histogram(data, x=col, nbins=20, title=f"{col} 히스토그램")
+                        st.plotly_chart(fig_hist, use_container_width=True)
+                    with c2:
+                        fig_box = px.box(data, y=col, title=f"{col} 박스플롯")
+                        st.plotly_chart(fig_box, use_container_width=True)
 
-            X = data[x_var]
-            Y = data[y_var]
-            X_const = sm.add_constant(X)
-            model = sm.OLS(Y, X_const).fit()
-            coef = model.params[x_var]
-            intercept = model.params['const']
-            r2 = model.rsquared
-            pval = model.pvalues[x_var]
-            if pval < 0.05:
-                sig = "통계적으로 유의함"
+        # 선택적: 상관/회귀 분석 (원하면 변수 선택)
+        st.markdown("---")
+        with st.expander("상관분석 및 회귀분석 (선택)"):
+            if len(num_cols) >= 2:
+                corr_x = st.selectbox("상관/회귀 X 변수", num_cols, index=0)
+                corr_y = st.selectbox("상관/회귀 Y 변수", num_cols, index=1 if len(num_cols)>1 else 0)
+                # perform correlation/regression using corr_x/corr_y
+                if corr_x != corr_y:
+                    corr = data[corr_x].corr(data[corr_y])
+                    st.write(f"상관계수: {corr:.2f}")
+                    if abs(corr) > 0.7:
+                        level = '매우 강함'
+                    elif abs(corr) > 0.4:
+                        level = '상당히 강함'
+                    elif abs(corr) > 0.2:
+                        level = '약함'
+                    else:
+                        level = '거의 없음'
+                    direction = '양의' if corr > 0 else '음의'
+                    summary_corr = f"{corr_x}와 {corr_y}의 상관계수는 {corr:.2f}로, {direction} 방향의 {level} 상관관계가 있습니다."
+                    st.write(f"해석: {summary_corr}")
+
+                    X = data[corr_x]
+                    Y = data[corr_y]
+                    X_const = sm.add_constant(X)
+                    model = sm.OLS(Y, X_const).fit()
+                    coef = model.params[corr_x]
+                    intercept = model.params['const']
+                    r2 = model.rsquared
+                    pval = model.pvalues[corr_x]
+                    if pval < 0.05:
+                        sig = "통계적으로 유의함"
+                    else:
+                        sig = "통계적으로 유의하지 않음"
+                    if coef > 0:
+                        reg_dir = "양의"
+                    else:
+                        reg_dir = "음의"
+                    reg_summary = f"{corr_x}가 1 증가할 때 {corr_y}는 {coef:.2f}만큼 {reg_dir} 방향으로 변화합니다. (절편: {intercept:.2f}, 결정계수: {r2:.2f}, p값: {pval:.3f}, {sig})"
+                    st.write(reg_summary)
+                    st.write("상세 회귀분석 결과표:")
+                    st.write(model.summary())
+                else:
+                    st.write("서로 다른 두 변수를 선택하세요.")
             else:
-                sig = "통계적으로 유의하지 않음"
-            if coef > 0:
-                reg_dir = "양의"
-            else:
-                reg_dir = "음의"
-            reg_summary = f"{x_var}가 1 증가할 때 {y_var}는 {coef:.2f}만큼 {reg_dir} 방향으로 변화합니다. (절편: {intercept:.2f}, 결정계수: {r2:.2f}, p값: {pval:.3f}, {sig})"
-            st.write(reg_summary)
-            st.write("상세 회귀분석 결과표:")
-            st.write(model.summary())
-        else:
-            st.write("서로 다른 두 변수를 선택하세요.")
+                st.info("상관/회귀 분석을 위해서는 최소 2개의 수치형 변수가 필요합니다.")
+
+        # 상관/회귀는 위의 expander에서 선택적으로 실행됩니다.
 
         # BMI 25 달성 계산기 (분석 탭 하단)
         st.markdown("---")
