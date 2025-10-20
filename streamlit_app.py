@@ -46,11 +46,27 @@ def create_pdf_bytes(student_name: str, plan_text: str, summary: dict, mix_summa
     have_unicode_font = False
     try:
         import os
-        font_path = os.path.join(os.getcwd(), 'NanumGothic.ttf')
-        if os.path.exists(font_path):
-            pdf.add_font('NanumGothic', '', font_path, uni=True)
-            pdf.set_font('NanumGothic', size=12)
-            have_unicode_font = True
+        # 우선순위로 찾을 파일명들
+        cand_names = ['NanumGothic.ttf', 'NotoKR.ttf', 'NotoSansKR-Regular.ttf']
+        font_path = None
+        for fn in cand_names:
+            p = os.path.join(os.getcwd(), fn)
+            if os.path.exists(p):
+                font_path = p
+                break
+        # 찾지 못하면 작업공간의 .ttf 파일을 하나 시도(업로드한 폰트가 있을 수 있음)
+        if font_path is None:
+            for f in os.listdir(os.getcwd()):
+                if f.lower().endswith('.ttf') or f.lower().endswith('.otf'):
+                    font_path = os.path.join(os.getcwd(), f)
+                    break
+        if font_path and os.path.exists(font_path):
+            try:
+                pdf.add_font('CustomKR', '', font_path, uni=True)
+                pdf.set_font('CustomKR', size=12)
+                have_unicode_font = True
+            except Exception:
+                pdf.set_font('Arial', size=12)
         else:
             pdf.set_font('Arial', size=12)
     except Exception:
@@ -391,6 +407,22 @@ with tab_analysis:
         plan_text = st.text_area("BMI 25 달성을 위한 나의 운동 계획안", height=200)
         if plan_text:
             st.success("계획안이 입력되었습니다. 필요하면 내용을 복사하거나 PDF로 내보내도록 요청하세요.")
+
+        # 한글 폰트 업로드 (선택) - PDF 한글 표시를 위해 TTF/OTF 파일을 업로드할 수 있습니다.
+        uploaded_font = st.file_uploader("한글 폰트 업로드 (선택, .ttf/.otf)", type=['ttf', 'otf'])
+        if uploaded_font is not None:
+            try:
+                font_bytes = uploaded_font.read()
+                font_save_name = 'NanumGothic.ttf'
+                # prefer original filename if contains noto/nanum
+                fname = uploaded_font.name
+                if 'noto' in fname.lower() or 'nanum' in fname.lower():
+                    font_save_name = fname
+                with open(os.path.join(os.getcwd(), font_save_name), 'wb') as f:
+                    f.write(font_bytes)
+                st.success(f"폰트 '{font_save_name}'이(가) 저장되었습니다. 이제 PDF가 한글을 표시할 수 있습니다.")
+            except Exception as e:
+                st.error(f"폰트 저장 중 오류가 발생했습니다: {e}")
 
         # PDF 다운로드 준비
         try:
