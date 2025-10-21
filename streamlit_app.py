@@ -457,7 +457,7 @@ with tab_analysis:
         st.markdown("---")
         st.subheader("건강 리포트 작성 (BMI 25 달성을 위한 운동 계획안)")
         st.markdown("**작성 참고 예시**")
-        st.info("예시: 나는 키가 170cm, 몸무게 80kg, BMI 값이 26이다. 그래서 BMI 25를 달성하기 위해 16주동안 걷기 2.3 km, 조깅 1.6 km, 달리기 1.0 km 할 것이다.")
+        st.info("나는 키가 189cm, 몸무게 93kg이다. 목표 체중(BMI 25.0 기준)은 89.3 kg, 감량 필요 체중은 3.7 kg, 필요 소모 칼로리(총)은 28490 kcal이다. 그래서 BMI 25를 달성하기 위해 16주동안 걷기 2.3 km, 조깅 1.6 km, 달리기 1.0 km 할 것이다.")
         student_name = st.text_input("이름(선택)")
         plan_text = st.text_area("BMI 25 달성을 위한 나의 운동 계획안", height=200)
         if plan_text:
