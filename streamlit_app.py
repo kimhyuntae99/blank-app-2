@@ -37,6 +37,57 @@ try:
 except Exception:
     pass
 
+
+# Callback helper: compute correlation and regression and store results in session_state
+def compute_corrreg_callback():
+    data = st.session_state.get('current_data')
+    # clear if no data
+    if data is None or data.empty:
+        st.session_state['corr_result'] = None
+        return
+    preferred = ['운동거리(km)', '칼로리(kcal)', '키(cm)', '체중(kg)', 'BMI']
+    num_cols = [c for c in data.columns if pd.api.types.is_numeric_dtype(data[c])]
+    available_vars = [c for c in preferred if c in num_cols]
+    if not available_vars:
+        available_vars = num_cols
+
+    cx = st.session_state.get('corr_x')
+    cy = st.session_state.get('corr_y')
+    # validate
+    if not cx or not cy or cx == cy or cx not in data.columns or cy not in data.columns:
+        st.session_state['corr_result'] = {'status': 'invalid'}
+        return
+
+    pair_df = data[[cx, cy]].dropna()
+    if pair_df.shape[0] < 2:
+        st.session_state['corr_result'] = {'status': 'too_few'}
+        return
+
+    X = pair_df[cx]
+    Y = pair_df[cy]
+    try:
+        from scipy import stats
+        pearson_r, _ = stats.pearsonr(X, Y)
+    except Exception:
+        pearson_r = X.corr(Y)
+
+    try:
+        X_reg = sm.add_constant(X)
+        model = sm.OLS(Y, X_reg).fit()
+        slope = float(model.params[cx]) if cx in model.params.index else float('nan')
+        intercept = float(model.params['const']) if 'const' in model.params.index else float('nan')
+    except Exception:
+        slope = float('nan')
+        intercept = float('nan')
+
+    st.session_state['corr_result'] = {
+        'status': 'ok',
+        'r': float(pearson_r) if pearson_r is not None else float('nan'),
+        'slope': slope,
+        'intercept': intercept,
+        'n': int(pair_df.shape[0])
+    }
+
 # PDF 생성 헬퍼 함수
 def create_pdf_bytes(student_name: str, plan_text: str, summary: dict, mix_summary: dict, include_chart_bytes: bytes=None) -> bytes:
     pdf = FPDF()
@@ -299,52 +350,52 @@ with tab_analysis:
                         fig_box = px.box(data, y=col, title=f"{col} 박스플롯")
                         st.plotly_chart(fig_box, use_container_width=True)
 
-        # 선택적: 상관/회귀 분석 (원하면 변수 선택)
+        # 변수들 간 상관행렬 히트맵 표시
         st.markdown("---")
-        with st.expander("상관분석 및 회귀분석 (선택)"):
-            if len(num_cols) >= 2:
-                corr_x = st.selectbox("상관/회귀 X 변수", num_cols, index=0)
-                corr_y = st.selectbox("상관/회귀 Y 변수", num_cols, index=1 if len(num_cols)>1 else 0)
-                # perform correlation/regression using corr_x/corr_y
-                if corr_x != corr_y:
-                    corr = data[corr_x].corr(data[corr_y])
-                    st.write(f"상관계수: {corr:.2f}")
-                    if abs(corr) > 0.7:
-                        level = '매우 강함'
-                    elif abs(corr) > 0.4:
-                        level = '상당히 강함'
-                    elif abs(corr) > 0.2:
-                        level = '약함'
-                    else:
-                        level = '거의 없음'
-                    direction = '양의' if corr > 0 else '음의'
-                    summary_corr = f"{corr_x}와 {corr_y}의 상관계수는 {corr:.2f}로, {direction} 방향의 {level} 상관관계가 있습니다."
-                    st.write(f"해석: {summary_corr}")
-
-                    X = data[corr_x]
-                    Y = data[corr_y]
-                    X_const = sm.add_constant(X)
-                    model = sm.OLS(Y, X_const).fit()
-                    coef = model.params[corr_x]
-                    intercept = model.params['const']
-                    r2 = model.rsquared
-                    pval = model.pvalues[corr_x]
-                    if pval < 0.05:
-                        sig = "통계적으로 유의함"
-                    else:
-                        sig = "통계적으로 유의하지 않음"
-                    if coef > 0:
-                        reg_dir = "양의"
-                    else:
-                        reg_dir = "음의"
-                    reg_summary = f"{corr_x}가 1 증가할 때 {corr_y}는 {coef:.2f}만큼 {reg_dir} 방향으로 변화합니다. (절편: {intercept:.2f}, 결정계수: {r2:.2f}, p값: {pval:.3f}, {sig})"
-                    st.write(reg_summary)
-                    st.write("상세 회귀분석 결과표:")
-                    st.write(model.summary())
-                else:
-                    st.write("서로 다른 두 변수를 선택하세요.")
+        with st.expander("변수 간 상관행렬 (히트맵)"):
+            num_cols = [c for c in data.columns if pd.api.types.is_numeric_dtype(data[c])]
+            if len(num_cols) < 2:
+                st.info("상관관계를 그리기 위해 최소 2개의 수치형 변수가 필요합니다.")
             else:
-                st.info("상관/회귀 분석을 위해서는 최소 2개의 수치형 변수가 필요합니다.")
+                corr = data[num_cols].corr()
+                try:
+                    # 기본 Plotly 히트맵: 텍스트는 주석으로 추가해 색상 대비 조정
+                    fig = px.imshow(
+                        corr,
+                        color_continuous_scale='RdBu',
+                        zmin=-1,
+                        zmax=1,
+                        origin='lower',
+                        labels=dict(x='변수', y='변수', color='상관계수')
+                    )
+                    fig.update_layout(title='변수 간 상관관계 히트맵', xaxis_tickangle=-45, height=600)
+                    # add annotations with contrasting text color depending on abs(value)
+                    for i, row in enumerate(corr.index):
+                        for j, col in enumerate(corr.columns):
+                            val = corr.iat[i, j]
+                            # use white text for strong correlations, black otherwise
+                            font_color = 'white' if abs(val) >= 0.5 else 'black'
+                            fig.add_annotation(x=col, y=row, text=f"{val:.2f}", showarrow=False,
+                                               font=dict(color=font_color, size=12))
+                    # ensure annotations are visible
+                    fig.update_traces(showscale=True)
+                    st.plotly_chart(fig, use_container_width=True)
+                except Exception:
+                    # fallback: matplotlib-only heatmap (no seaborn dependency)
+                    import matplotlib.pyplot as plt
+                    fig, ax = plt.subplots(figsize=(max(6, len(num_cols)), max(6, len(num_cols))))
+                    im = ax.imshow(corr.values, cmap='RdBu', vmin=-1, vmax=1)
+                    ax.set_xticks(range(len(num_cols)))
+                    ax.set_xticklabels(num_cols, rotation=45, ha='right')
+                    ax.set_yticks(range(len(num_cols)))
+                    ax.set_yticklabels(num_cols)
+                    # annotate
+                    for i in range(len(num_cols)):
+                        for j in range(len(num_cols)):
+                            ax.text(j, i, f"{corr.values[i,j]:.2f}", ha='center', va='center', color='black')
+                    fig.colorbar(im, ax=ax)
+                    ax.set_title('변수 간 상관관계 히트맵')
+                    st.pyplot(fig)
 
         # 상관/회귀는 위의 expander에서 선택적으로 실행됩니다.
 
