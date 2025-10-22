@@ -320,7 +320,6 @@ with tab_analysis:
     else:
         st.subheader("데이터 미리보기")
         st.dataframe(data)
-    # 결측치율 요약은 화면에 자동 표시하지 않음
 
         # 기술통계(기술통계 표 및 시각화)
         num_cols = [c for c in data.columns if pd.api.types.is_numeric_dtype(data[c])]
@@ -397,19 +396,21 @@ with tab_analysis:
                     ax.set_title('변수 간 상관관계 히트맵')
                     st.pyplot(fig)
 
-        # 상관/회귀는 위의 expander에서 선택적으로 실행됩니다.
-
-        # BMI 25 달성 계산기 (분석 탭 하단)
+        # BMI 목표 달성 계산기 (분석 탭 하단)
         st.markdown("---")
-        st.subheader("BMI 25 달성을 위한 목표 계산기 및 운동 계획")
+        # 사용자가 목표 BMI를 선택할 수 있도록 변경 (20,21,22,23,25)
+        target_options = [20.0, 21.0, 22.0, 23.0, 25.0]
+        target_bmi = st.selectbox("목표 BMI 선택", target_options, index=target_options.index(25.0))
+        st.subheader(f"BMI {target_bmi:.0f} 달성을 위한 목표 계산기 및 운동 계획")
         st.write("데이터에서 평균값을 자동으로 불러오거나, 직접 값을 입력하여 계산할 수 있습니다.")
-        use_data_avg = False
+
         try:
             avg_height = round(data['키(cm)'].mean(),1) if '키(cm)' in data.columns else 170.0
             avg_weight = round(data['체중(kg)'].mean(),1) if '체중(kg)' in data.columns else 65.0
         except Exception:
             avg_height = 170.0
             avg_weight = 65.0
+
         if st.checkbox("데이터 평균값 사용 (있을 경우)"):
             calc_height = st.number_input("계산용 키(cm)", min_value=100.0, max_value=250.0, value=float(avg_height), step=0.1)
             current_weight = st.number_input("현재 체중(kg)", min_value=30.0, max_value=200.0, value=float(avg_weight), step=0.1)
@@ -417,7 +418,6 @@ with tab_analysis:
             calc_height = st.number_input("계산용 키(cm)", min_value=100.0, max_value=250.0, value=170.0, step=0.1)
             current_weight = st.number_input("현재 체중(kg)", min_value=30.0, max_value=200.0, value=65.0, step=0.1)
 
-        target_bmi = 25.0
         target_weight = round(target_bmi * ((calc_height/100)**2), 1)
         weight_diff = round(current_weight - target_weight, 1)
         st.write(f"목표 체중(BMI {target_bmi} 기준): {target_weight} kg")
@@ -453,19 +453,20 @@ with tab_analysis:
                 st.write(f"혼합 추천(비율 반영): 걷기 {walk_mix} km + 조깅 {jog_mix} km + 달리기 {run_mix} km (총 {round(walk_mix + jog_mix + run_mix,1)} km)")
                 st.write(f"일일 혼합 운동(기간 {period_days}일 기준): 걷기 {round(walk_mix/period_days,1)} km / 조깅 {round(jog_mix/period_days,1)} km / 달리기 {round(run_mix/period_days,1)} km")
         else:
-            st.info("현재 체중이 이미 BMI 25 이하이거나 감량이 필요하지 않습니다.")
+            st.info("현재 체중이 이미 목표 BMI 이하이거나 감량이 필요하지 않습니다.")
+
         st.markdown("---")
-        st.subheader("건강 리포트 작성 (BMI 25 달성을 위한 운동 계획안)")
+        st.subheader(f"건강 리포트 작성 (BMI {target_bmi:.0f} 달성을 위한 운동 계획안)")
         st.markdown("**작성 참고 예시**")
-        st.info("나는 키가 189cm, 몸무게 93kg이다. 목표 체중(BMI 25.0 기준)은 89.3 kg, 감량 필요 체중은 3.7 kg, 필요 소모 칼로리(총)은 28490 kcal이다. 그래서 BMI 25를 달성하기 위해 16주동안 걷기 2.3 km, 조깅 1.6 km, 달리기 1.0 km 할 것이다.")
+        st.info("나는 키가 189cm, 몸무게 93kg이다. 목표 체중(BMI 23.0 기준)은 89.3 kg, 감량 필요 체중은 3.7 kg, 필요 소모 칼로리(총)은 28490 kcal이다. 그래서 BMI 23을 달성하기 위해 16주동안 걷기 2.3 km, 조깅 1.6 km, 달리기 1.0 km 할 것이다.")
         student_name = st.text_input("이름(선택)")
-        plan_text = st.text_area("BMI 25 달성을 위한 나의 운동 계획안", height=200)
+        plan_text = st.text_area(f"BMI {target_bmi:.0f} 달성을 위한 나의 운동 계획안", height=200)
         if plan_text:
             st.success("계획안이 입력되었습니다. 필요하면 내용을 복사하거나 PDF로 내보내도록 요청하세요.")
 
         # (폰트 업로드 UI는 제거됨)
 
-        # PDF 다운로드 준비
+        # PDF 다운로드 준비 (현재 PDF 기능은 사용하지 않음)
         try:
             summary = {
                 '현재 키(cm)': f"{calc_height}",
